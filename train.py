@@ -20,9 +20,9 @@ def initParams():
     # Data folder prepare
     parser.add_argument("-a", "--access_type", type=str, help="LA or PA", default='LA')
     parser.add_argument("-f", "--path_to_features", type=str, help="features path",
-                        default='/dataNVME/neil/ASVspoof2019LAFeatures/')
+                        default='ASVspoof2019_LA_Features')
     parser.add_argument("-p", "--path_to_protocol", type=str, help="protocol path",
-                        default='/data/neil/DS_10283_3336/LA/ASVspoof2019_LA_cm_protocols/')
+                        default='ASVspoof2019_LA/ASVspoof2019_LA_cm_protocols')
     parser.add_argument("-o", "--out_fold", type=str, help="output folder", required=True, default='./models/try/')
 
     # Dataset prepare
@@ -32,7 +32,7 @@ def initParams():
     parser.add_argument("--enc_dim", type=int, help="encoding dimension", default=256)
 
     # Training hyperparameters
-    parser.add_argument('--num_epochs', type=int, default=100, help="Number of epochs for training")
+    parser.add_argument('--num_epochs', type=int, default=1, help="Number of epochs for training")
     parser.add_argument('--batch_size', type=int, default=64, help="Mini batch size for training")
     parser.add_argument('--lr', type=float, default=0.0003, help="learning rate")
     parser.add_argument('--lr_decay', type=float, default=0.5, help="decay learning rate")
@@ -56,8 +56,6 @@ def initParams():
 
     args = parser.parse_args()
 
-    # Change this to specify GPU
-    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
 
     # Set seeds
     setup_seed(args.seed)
@@ -92,9 +90,19 @@ def initParams():
             file.write("Start recording validation loss ...\n")
 
     # assign device
-    args.cuda = torch.cuda.is_available()
-    print('Cuda device available: ', args.cuda)
-    args.device = torch.device("cuda" if args.cuda else "cpu")
+    if torch.cuda.is_available():
+        args.cuda = torch.cuda.is_available()
+       # Change this to specify GPU
+        os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
+        print('Cuda device available: ', args.cuda)
+        args.device = torch.device("cuda" if args.cuda else "cpu")
+
+    elif torch.backends.mps.is_available():
+        print('mps is available')
+        args.device = torch.device("mps")
+
+    else:
+        args.device = "cpu"
 
     return args
 

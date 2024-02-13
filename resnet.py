@@ -37,7 +37,9 @@ class SelfAttention(nn.Module):
         else:
             noise = 1e-5*torch.randn(weighted.size())
 
-            if inputs.is_cuda:
+            if inputs.is_mps:
+                noise = noise.to(inputs.device)
+            elif inputs.is_cuda:
                 noise = noise.to(inputs.device)
             avg_repr, std_repr = weighted.sum(1), (weighted+noise).std(1)
 

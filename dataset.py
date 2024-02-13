@@ -21,7 +21,10 @@ class ASVspoof2019(Dataset):
         self.feature = feature
         self.path_to_protocol = path_to_protocol
         self.padding = padding
-        protocol = os.path.join(self.path_to_protocol, 'ASVspoof2019.'+access_type+'.cm.'+ self.part + '.trl.txt')
+        if self.part == 'train':
+            protocol = os.path.join(self.path_to_protocol, 'ASVspoof2019.'+access_type+'.cm.'+ self.part + '.trn.txt')
+        else:
+            protocol = os.path.join(self.path_to_protocol, 'ASVspoof2019.'+access_type+'.cm.'+ self.part + '.trl.txt')
         if self.access_type == 'LA':
             self.tag = {"-": 0, "A01": 1, "A02": 2, "A03": 3, "A04": 4, "A05": 5, "A06": 6, "A07": 7, "A08": 8, "A09": 9,
                       "A10": 10, "A11": 11, "A12": 12, "A13": 13, "A14": 14, "A15": 15, "A16": 16, "A17": 17, "A18": 18,
@@ -91,6 +94,6 @@ def repeat_padding(spec, ref_len):
 
 if __name__ == "__main__":
     # path_to_database = '/data/neil/DS_10283_3336/'  # if run on GPU
-    path_to_features = '/dataNVME/neil/ASVspoof2019Features/'  # if run on GPU
-    path_to_protocol = '/data/neil/DS_10283_3336/LA/ASVspoof2019_LA_cm_protocols/'
+    path_to_features = 'ASVspoof2019_LA_Features'  # if run on GPU
+    path_to_protocol = 'ASVspoof2019_LA/ASVspoof2019_LA_cm_protocols'
 
