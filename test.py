@@ -20,8 +20,8 @@ def test_model(feat_model_path, loss_model_path, part, add_loss, device):
     model = torch.load(feat_model_path, map_location="cuda")
     model = model.to(device)
     loss_model = torch.load(loss_model_path) if add_loss != "softmax" else None
-    test_set = ASVspoof2019("LA", "/dataNVME/neil/ASVspoof2019LAFeatures/",
-                            "/data/neil/DS_10283_3336/LA/ASVspoof2019_LA_cm_protocols/", part,
+    test_set = ASVspoof2019("LA", "ASVspoof2019_LA_Features",
+                            "ASVspoof2019_LA/ASVspoof2019_LA_cm_protocols", part,
                             "LFCC", feat_len=750, padding="repeat")
     testDataLoader = DataLoader(test_set, batch_size=32, shuffle=False, num_workers=0,
                                 collate_fn=test_set.collate_fn)
@@ -50,7 +50,7 @@ def test_model(feat_model_path, loss_model_path, part, add_loss, device):
                                           score[j].item()))
 
     eer_cm, min_tDCF = compute_eer_and_tdcf(os.path.join(dir_path, 'checkpoint_cm_score.txt'),
-                                            "/data/neil/DS_10283_3336/")
+                                            "ASVspoof2019_LA")
     return eer_cm, min_tDCF
 
 def test(model_dir, add_loss, device):
