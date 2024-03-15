@@ -29,7 +29,7 @@ def compute_eer_and_tdcf(cm_score_file, path_to_database):
     cm_utt_id = cm_data[:, 0]
     cm_sources = cm_data[:, 1]
     cm_keys = cm_data[:, 2]
-    cm_scores = cm_data[:, 3].astype(np.float)
+    cm_scores = cm_data[:, 3].astype(float)
 
     other_cm_scores = -cm_scores
 

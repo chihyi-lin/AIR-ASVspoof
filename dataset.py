@@ -80,6 +80,48 @@ class ASVspoof2019(Dataset):
     def collate_fn(self, samples):
         return default_collate(samples)
 
+class InTheWildDataset(Dataset):
+    def __init__(self, path_to_features, path_to_protocol, part='train', feature='LFCC', 
+                 feat_len=750, padding='repeat'):
+        self.path_to_features = path_to_features
+        self.path_to_protocol = path_to_protocol
+        self.feature = feature
+        self.feat_len = feat_len
+        self.padding = padding
+        self.label = {"spoof": 1, "bona-fide": 0}
+
+        with open(self.path_to_protocol, 'r') as f:
+            next(f)
+            audio_info = [[item.split('.')[0].split('x')[-1] if idx == 0 else item for idx,
+                            item in enumerate(info.strip().split(','))] for info in f]
+            self.all_info = audio_info
+
+    def __len__(self):
+        return len(self.all_info)  
+    
+    def __getitem__(self, idx):
+        filename, speaker, label = self.all_info[idx]
+        with open(self.path_to_features + '/' + filename + self.feature + '.pkl', 'rb') as feature_handle:
+            feat_mat = pickle.load(feature_handle)
+            feat_mat = torch.from_numpy(feat_mat)
+            this_feat_len = feat_mat.shape[1]
+        if this_feat_len > self.feat_len:
+            startp = np.random.randint(this_feat_len-self.feat_len)
+            feat_mat = feat_mat[:, startp:startp+self.feat_len]
+        if this_feat_len < self.feat_len:
+            if self.padding == 'zero':
+                feat_mat = padding(feat_mat, self.feat_len)
+            elif self.padding == 'repeat':
+                feat_mat = repeat_padding(feat_mat, self.feat_len)
+            else:
+                raise ValueError('Padding should be zero or repeat!')
+
+        return feat_mat, filename, self.label[label]
+    
+    def collate_fn(self, samples):
+        return default_collate(samples)
+      
+
 def padding(spec, ref_len):
     width, cur_len = spec.shape
     assert ref_len > cur_len
@@ -93,7 +135,15 @@ def repeat_padding(spec, ref_len):
 
 
 if __name__ == "__main__":
-    # path_to_database = '/data/neil/DS_10283_3336/'  # if run on GPU
-    path_to_features = 'ASVspoof2019_LA_Features'  # if run on GPU
-    path_to_protocol = 'ASVspoof2019_LA/ASVspoof2019_LA_cm_protocols'
 
+    # dataset = InTheWildDataset(
+    #     path_to_features='datasets/in_the_wild_Features',
+    #     path_to_protocol='datasets/meta.csv'
+    # )
+    # print(len(dataset))
+    # print(dataset[0])
+
+    # dataset = ASVspoof2019('LA', 'datasets/ASVspoof2019_LA_Features', 
+    #                        'datasets/ASVspoof2019_LA/ASVspoof2019_LA_cm_protocols', part='eval')
+    # print(len(dataset))
+    # print(dataset[0])
