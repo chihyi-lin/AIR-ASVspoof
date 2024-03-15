@@ -136,12 +136,12 @@ def repeat_padding(spec, ref_len):
 
 if __name__ == "__main__":
 
-    # dataset = InTheWildDataset(
-    #     path_to_features='datasets/in_the_wild_Features',
-    #     path_to_protocol='datasets/meta.csv'
-    # )
-    # print(len(dataset))
-    # print(dataset[0])
+    dataset = InTheWildDataset(
+        path_to_features='datasets/in_the_wild_Features',
+        path_to_protocol='datasets/meta.csv'
+    )
+    print(len(dataset))
+    print(dataset[0])
 
     # dataset = ASVspoof2019('LA', 'datasets/ASVspoof2019_LA_Features', 
     #                        'datasets/ASVspoof2019_LA/ASVspoof2019_LA_cm_protocols', part='eval')
