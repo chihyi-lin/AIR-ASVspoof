@@ -4,13 +4,14 @@ import torch
 from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.nn.functional as F
-from dataset import ASVspoof2019
+from dataset import ASVspoof2019, InTheWildDataset
 from evaluate_tDCF_asvspoof19 import compute_eer_and_tdcf
 from tqdm import tqdm
 import eval_metrics as em
 import numpy as np
+from evaluate_in_the_wild import compute_eer_in_the_wild
 
-def test_model(feat_model_path, loss_model_path, part, add_loss, device):
+def test_model(feat_model_path, loss_model_path, test_set, part, add_loss, device):
     dirname = os.path.dirname
     basename = os.path.splitext(os.path.basename(feat_model_path))[0]
     if "checkpoint" in dirname(feat_model_path):
@@ -20,43 +21,77 @@ def test_model(feat_model_path, loss_model_path, part, add_loss, device):
     model = torch.load(feat_model_path, map_location="cuda")
     model = model.to(device)
     loss_model = torch.load(loss_model_path) if add_loss != "softmax" else None
-    test_set = ASVspoof2019("LA", "ASVspoof2019_LA_Features",
-                            "ASVspoof2019_LA/ASVspoof2019_LA_cm_protocols", part,
-                            "LFCC", feat_len=750, padding="repeat")
-    testDataLoader = DataLoader(test_set, batch_size=32, shuffle=False, num_workers=0,
-                                collate_fn=test_set.collate_fn)
+
+    if test_set == 'ASVspoof2019':
+        test_obj = ASVspoof2019("LA", "datasets/ASVspoof2019_LA_Features",
+                                "datasets/ASVspoof2019_LA/ASVspoof2019_LA_cm_protocols", part,
+                                "LFCC", feat_len=750, padding="repeat")    
+    elif test_set == 'in_the_wild':
+        test_obj = InTheWildDataset(path_to_features='datasets/in_the_wild_Features',
+        path_to_protocol='datasets/meta.csv')
+    
+    testDataLoader = DataLoader(test_obj, batch_size=32, shuffle=False, num_workers=0,
+                                    collate_fn=test_obj.collate_fn)
+
     model.eval()
 
-    with open(os.path.join(dir_path, 'checkpoint_cm_score.txt'), 'w') as cm_score_file:
-        for i, (lfcc, audio_fn, tags, labels) in enumerate(tqdm(testDataLoader)):
-            lfcc = lfcc.unsqueeze(1).float().to(device)
-            tags = tags.to(device)
-            labels = labels.to(device)
+    if test_set == 'ASVspoof2019':
+        with open(os.path.join(dir_path, 'checkpoint_cm_score.txt'), 'w') as cm_score_file:
+            for i, (lfcc, audio_fn, tags, labels) in enumerate(tqdm(testDataLoader)):
+                lfcc = lfcc.unsqueeze(1).float().to(device)
+                tags = tags.to(device)
+                labels = labels.to(device)
 
-            feats, lfcc_outputs = model(lfcc)
+                feats, lfcc_outputs = model(lfcc)
 
-            score = F.softmax(lfcc_outputs)[:, 0]
+                score = F.softmax(lfcc_outputs)[:, 0]
 
-            if add_loss == "ocsoftmax":
-                ang_isoloss, score = loss_model(feats, labels)
-            elif add_loss == "amsoftmax":
-                outputs, moutputs = loss_model(feats, labels)
-                score = F.softmax(outputs, dim=1)[:, 0]
+                if add_loss == "ocsoftmax":
+                    ang_isoloss, score = loss_model(feats, labels)
+                elif add_loss == "amsoftmax":
+                    outputs, moutputs = loss_model(feats, labels)
+                    score = F.softmax(outputs, dim=1)[:, 0]
 
-            for j in range(labels.size(0)):
-                cm_score_file.write(
-                    '%s A%02d %s %s\n' % (audio_fn[j], tags[j].data,
-                                          "spoof" if labels[j].data.cpu().numpy() else "bonafide",
-                                          score[j].item()))
+                for j in range(labels.size(0)):
+                    cm_score_file.write(
+                        '%s A%02d %s %s\n' % (audio_fn[j], tags[j].data,
+                                            "spoof" if labels[j].data.cpu().numpy() else "bonafide",
+                                            score[j].item()))
 
-    eer_cm, min_tDCF = compute_eer_and_tdcf(os.path.join(dir_path, 'checkpoint_cm_score.txt'),
-                                            "ASVspoof2019_LA")
-    return eer_cm, min_tDCF
+        eer_cm, min_tDCF = compute_eer_and_tdcf(os.path.join(dir_path, 'checkpoint_cm_score.txt'),
+                                                "ASVspoof2019_LA")
+        return eer_cm, min_tDCF
+    
+    elif test_set == 'in_the_wild':
+        with open(os.path.join(dir_path, 'in_the_wild_score.txt'), 'w') as in_the_wild_score_file:
+            for i, (lfcc, filename, labels) in enumerate(tqdm(testDataLoader)):
+                lfcc = lfcc.unsqueeze(1).float().to(device)
+                labels = labels.to(device)
 
-def test(model_dir, add_loss, device):
+                feats, lfcc_outputs = model(lfcc)
+
+                score = F.softmax(lfcc_outputs)[:, 0]
+
+                if add_loss == "ocsoftmax":
+                    ang_isoloss, score = loss_model(feats, labels)
+                elif add_loss == "amsoftmax":
+                    outputs, moutputs = loss_model(feats, labels)
+                    score = F.softmax(outputs, dim=1)[:, 0]
+                
+                for j in range(labels.size(0)):
+                    in_the_wild_score_file.write(
+                        '%s %s %s\n' % (filename[j], 
+                                        "spoof" if labels[j].data.cpu().numpy() else "bona-fide",
+                                        score[j].item()))
+
+        thresh, eer, fpr, tpr = compute_eer_in_the_wild(os.path.join(dir_path, 'in_the_wild_score.txt'))
+        print(f'EER In-the-wild: {eer:.4f}')
+        return eer
+
+def test(model_dir, add_loss, device, test_set):
     model_path = os.path.join(model_dir, "anti-spoofing_lfcc_model.pt")
     loss_model_path = os.path.join(model_dir, "anti-spoofing_loss_model.pt")
-    test_model(model_path, loss_model_path, "eval", add_loss, device)
+    test_model(model_path, loss_model_path, test_set, "eval", add_loss, device)
 
 def test_individual_attacks(cm_score_file):
     asv_score_file = os.path.join('/data/neil/DS_10283_3336',
@@ -135,10 +170,11 @@ if __name__ == "__main__":
     parser.add_argument('-l', '--loss', type=str, default="ocsoftmax",
                         choices=["softmax", 'amsoftmax', 'ocsoftmax'], help="loss function")
     parser.add_argument("--gpu", type=str, help="GPU index", default="0")
+    parser.add_argument('-t', '--test_set', type=str, help="choose a test dataset", default='ASVspoof2019')
     args = parser.parse_args()
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     args.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    test(args.model_dir, args.loss, args.device)
+    test(args.model_dir, args.loss, args.device, args.test_set)
     # eer_cm_lst, min_tDCF_lst = test_individual_attacks(os.path.join(args.model_dir, 'checkpoint_cm_score.txt'))
     # print(eer_cm_lst)
     # print(min_tDCF_lst)
