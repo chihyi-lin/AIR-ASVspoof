@@ -36,30 +36,32 @@ def test_model(feat_model_path, loss_model_path, test_set, part, add_loss, devic
     model.eval()
 
     if test_set == 'ASVspoof2019':
-        with open(os.path.join(dir_path, 'checkpoint_cm_score.txt'), 'w') as cm_score_file:
-            for i, (lfcc, audio_fn, tags, labels) in enumerate(tqdm(testDataLoader)):
-                lfcc = lfcc.unsqueeze(1).float().to(device)
-                tags = tags.to(device)
-                labels = labels.to(device)
+        if not os.path.exists(os.path.join(dir_path, 'checkpoint_cm_score.txt')):
+            print('create checkpoint_cm_score.txt and run evaluation:')
+            with open(os.path.join(dir_path, 'checkpoint_cm_score.txt'), 'w') as cm_score_file:
+                for i, (lfcc, audio_fn, tags, labels) in enumerate(tqdm(testDataLoader)):
+                    lfcc = lfcc.unsqueeze(1).float().to(device)
+                    tags = tags.to(device)
+                    labels = labels.to(device)
 
-                feats, lfcc_outputs = model(lfcc)
+                    feats, lfcc_outputs = model(lfcc)
 
-                score = F.softmax(lfcc_outputs)[:, 0]
+                    score = F.softmax(lfcc_outputs)[:, 0]
 
-                if add_loss == "ocsoftmax":
-                    ang_isoloss, score = loss_model(feats, labels)
-                elif add_loss == "amsoftmax":
-                    outputs, moutputs = loss_model(feats, labels)
-                    score = F.softmax(outputs, dim=1)[:, 0]
+                    if add_loss == "ocsoftmax":
+                        ang_isoloss, score = loss_model(feats, labels)
+                    elif add_loss == "amsoftmax":
+                        outputs, moutputs = loss_model(feats, labels)
+                        score = F.softmax(outputs, dim=1)[:, 0]
 
-                for j in range(labels.size(0)):
-                    cm_score_file.write(
-                        '%s A%02d %s %s\n' % (audio_fn[j], tags[j].data,
-                                            "spoof" if labels[j].data.cpu().numpy() else "bonafide",
-                                            score[j].item()))
-
+                    for j in range(labels.size(0)):
+                        cm_score_file.write(
+                            '%s A%02d %s %s\n' % (audio_fn[j], tags[j].data,
+                                                "spoof" if labels[j].data.cpu().numpy() else "bonafide",
+                                                score[j].item()))
+        
         eer_cm, min_tDCF = compute_eer_and_tdcf(os.path.join(dir_path, 'checkpoint_cm_score.txt'),
-                                                "ASVspoof2019_LA")
+                                                    "datasets/ASVspoof2019_LA")
         return eer_cm, min_tDCF
     
     elif test_set == 'in_the_wild':
