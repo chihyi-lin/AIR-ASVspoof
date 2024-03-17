@@ -20,9 +20,9 @@ def initParams():
     # Data folder prepare
     parser.add_argument("-a", "--access_type", type=str, help="LA or PA", default='LA')
     parser.add_argument("-f", "--path_to_features", type=str, help="features path",
-                        default='ASVspoof2019_LA_Features')
+                        default='datasets/ASVspoof2019_LA_Features')
     parser.add_argument("-p", "--path_to_protocol", type=str, help="protocol path",
-                        default='ASVspoof2019_LA/ASVspoof2019_LA_cm_protocols')
+                        default='datasets/ASVspoof2019_LA/ASVspoof2019_LA_cm_protocols')
     parser.add_argument("-o", "--out_fold", type=str, help="output folder", required=True, default='./models/try/')
 
     # Dataset prepare
@@ -90,19 +90,11 @@ def initParams():
             file.write("Start recording validation loss ...\n")
 
     # assign device
-    if torch.cuda.is_available():
-        args.cuda = torch.cuda.is_available()
-       # Change this to specify GPU
-        os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
-        print('Cuda device available: ', args.cuda)
-        args.device = torch.device("cuda" if args.cuda else "cpu")
-
-    elif torch.backends.mps.is_available():
-        print('mps is available')
-        args.device = torch.device("mps")
-
-    else:
-        args.device = "cpu"
+    args.cuda = torch.cuda.is_available()
+    # Change this to specify GPU
+    # os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
+    print('Cuda device available: ', args.cuda)
+    args.device = torch.device("cuda" if args.cuda else "cpu")
 
     return args
 
