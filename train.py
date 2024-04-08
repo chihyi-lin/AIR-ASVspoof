@@ -11,25 +11,19 @@ import eval_metrics as em
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
+from dataset_asvspoof21 import preprocess_data
 
 torch.set_default_tensor_type(torch.FloatTensor)
 
 def initParams():
     parser = argparse.ArgumentParser(description=__doc__)
-
-    # Data folder prepare
-    parser.add_argument("-a", "--access_type", type=str, help="LA or PA", default='LA')
-    parser.add_argument("-f", "--path_to_features", type=str, help="features path",
-                        default='datasets/ASVspoof2019_LA_Features')
-    parser.add_argument("-p", "--path_to_protocol", type=str, help="protocol path",
-                        default='datasets/ASVspoof2019_LA/ASVspoof2019_LA_cm_protocols')
-    parser.add_argument("-o", "--out_fold", type=str, help="output folder", required=True, default='./models/try/')
-
-    # Dataset prepare
-    parser.add_argument("--feat_len", type=int, help="features length", default=750)
-    parser.add_argument('--padding', type=str, default='repeat', choices=['zero', 'repeat'],
-                        help="how to pad short utterance")
-    parser.add_argument("--enc_dim", type=int, help="encoding dimension", default=256)
+    # Add argument for dataset version
+    parser.add_argument("--dataset_version", type=str, choices=["ASVspoof_2019", "ASVspoof_2021"], default="ASVspoof_2021",
+                        help="Dataset version to train on")
+    
+    parser.add_argument("--train_amount", help="Amount of files to load for training ASVspoof_2021", type=int, default=None)
+    parser.add_argument("--valid_amount", help="Amount of files to load for testing ASVspoof_2021", type=int, default=None)
+    parser.add_argument("-o", "--out_fold", type=str, help="output folder", required=True, default='./models/try/')    
 
     # Training hyperparameters
     parser.add_argument('--num_epochs', type=int, default=100, help="Number of epochs for training")
@@ -37,6 +31,7 @@ def initParams():
     parser.add_argument('--lr', type=float, default=0.0003, help="learning rate")
     parser.add_argument('--lr_decay', type=float, default=0.5, help="decay learning rate")
     parser.add_argument('--interval', type=int, default=10, help="interval to decay lr")
+    parser.add_argument("--enc_dim", type=int, help="encoding dimension", default=256)
 
     parser.add_argument('--beta_1', type=float, default=0.9, help="bata_1 for Adam")
     parser.add_argument('--beta_2', type=float, default=0.999, help="beta_2 for Adam")
@@ -53,9 +48,39 @@ def initParams():
     parser.add_argument('--alpha', type=float, default=20, help="scale factor for ocsoftmax")
 
     parser.add_argument('--continue_training', action='store_true', help="continue training with previously trained model")
-
+    parser.add_argument("--cpu", "-c", help="Force using cpu?", action="store_true")
     args = parser.parse_args()
 
+    # ASVspoof_2019
+    if args.dataset_version == "ASVspoof_2019":
+        # Data folder prepare
+        parser.add_argument("-a", "--access_type", type=str, help="LA or PA", default='LA')
+        parser.add_argument("-f", "--path_to_features", type=str, help="features path",
+                            default='datasets/ASVspoof2019_LA_Features')
+        parser.add_argument("-p", "--path_to_protocol", type=str, help="protocol path",
+                            default='datasets/ASVspoof2019_LA/ASVspoof2019_LA_cm_protocols')
+        # Dataset prepare
+        parser.add_argument("--feat_len", type=int, help="features length", default=750)
+        parser.add_argument('--padding', type=str, default='repeat', choices=['zero', 'repeat'],
+                        help="how to pad short utterance")
+    
+    # ASVspoof_2021
+    if args.dataset_version == "ASVspoof_2021":
+        ASVSPOOF_DATASET_PATH = "datasets/ASVspoof2021/DF"
+        parser.add_argument(
+            "--asv_path",
+            type=str,
+            default=ASVSPOOF_DATASET_PATH,
+            help="Path to ASVspoof2021 dataset directory",
+        )
+        
+        if args.train_amount is None:
+            args.train_amount = 100000
+
+        if args.valid_amount is None:
+            args.valid_amount = 25000
+    
+    args = parser.parse_args()
 
     # Set seeds
     setup_seed(args.seed)
@@ -78,7 +103,8 @@ def initParams():
             os.mkdir(os.path.join(args.out_fold, 'checkpoint'))
 
         # Path for input data
-        assert os.path.exists(args.path_to_features)
+        if args.dataset_version == "ASVspoof_2019":
+            assert os.path.exists(args.path_to_features)
 
         # Save training arguments
         with open(os.path.join(args.out_fold, 'args.json'), 'w') as file:
@@ -90,11 +116,15 @@ def initParams():
             file.write("Start recording validation loss ...\n")
 
     # assign device
-    args.cuda = torch.cuda.is_available()
-    # Change this to specify GPU
-    # os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
-    print('Cuda device available: ', args.cuda)
-    args.device = torch.device("cuda" if args.cuda else "cpu")
+    # args.cuda = torch.cuda.is_available()
+    # # Change this to specify GPU
+    # # os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
+    # print('Cuda device available: ', args.cuda)
+    # args.device = torch.device("cuda" if args.cuda else "cpu")
+    if not args.cpu and torch.cuda.is_available():
+        args.device = "cuda"
+    else:
+        args.device = "cpu"
 
     return args
 
@@ -114,17 +144,24 @@ def train(args):
     lfcc_optimizer = torch.optim.Adam(lfcc_model.parameters(), lr=args.lr,
                                       betas=(args.beta_1, args.beta_2), eps=args.eps, weight_decay=0.0005)
 
-    training_set = ASVspoof2019(args.access_type, args.path_to_features, args.path_to_protocol, 'train',
-                                'LFCC', feat_len=args.feat_len, padding=args.padding)
-    validation_set = ASVspoof2019(args.access_type, args.path_to_features, args.path_to_protocol, 'dev',
-                                  'LFCC', feat_len=args.feat_len, padding=args.padding)
-    trainDataLoader = DataLoader(training_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers,
-                                 collate_fn=training_set.collate_fn)
-    valDataLoader = DataLoader(validation_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers,
-                               collate_fn=validation_set.collate_fn)
+    if args.dataset_version == "ASVspoof_2021":
+        trainDataLoader, valDataLoader = preprocess_data(
+            datasets_paths=args.asv_path,
+            train_amount=args.train_amount,
+            valid_amount=args.valid_amount,
+            batch_size=args.batch_size)
+    else:
+        training_set = ASVspoof2019(args.access_type, args.path_to_features, args.path_to_protocol, 'train',
+                                    'LFCC', feat_len=args.feat_len, padding=args.padding)
+        validation_set = ASVspoof2019(args.access_type, args.path_to_features, args.path_to_protocol, 'dev',
+                                    'LFCC', feat_len=args.feat_len, padding=args.padding)
+        trainDataLoader = DataLoader(training_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers,
+                                    collate_fn=training_set.collate_fn)
+        valDataLoader = DataLoader(validation_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers,
+                                collate_fn=validation_set.collate_fn)
 
-    feat, _, _, _ = training_set[29]
-    print("Feature shape", feat.shape)
+    # feat, _, _, _ = training_set[29]
+    # print("Feature shape", feat.shape)
 
     criterion = nn.CrossEntropyLoss()
 
@@ -153,67 +190,128 @@ def train(args):
         elif args.add_loss == "amsoftmax":
             adjust_learning_rate(args, amsoftmax_optimzer, epoch_num)
         print('\nEpoch: %d ' % (epoch_num + 1))
-        for i, (lfcc, audio_fn, tags, labels) in enumerate(tqdm(trainDataLoader)):
-            lfcc = lfcc.unsqueeze(1).float().to(args.device)
-            labels = labels.to(args.device)
-            feats, lfcc_outputs = lfcc_model(lfcc)
-            lfcc_loss = criterion(lfcc_outputs, labels)
 
-            if args.add_loss == "softmax":
-                lfcc_optimizer.zero_grad()
-                trainlossDict[args.add_loss].append(lfcc_loss.item())
-                lfcc_loss.backward()
-                lfcc_optimizer.step()
+        if args.dataset_version == "ASVspoof_2021":
+            for i, (lfcc, labels) in enumerate(tqdm(trainDataLoader)):
+                lfcc = lfcc.unsqueeze(1).float().to(args.device)
+                labels = labels.to(args.device)
+                feats, lfcc_outputs = lfcc_model(lfcc)
+                lfcc_loss = criterion(lfcc_outputs, labels)
 
-            if args.add_loss == "ocsoftmax":
-                ocsoftmaxloss, _ = ocsoftmax(feats, labels)
-                lfcc_loss = ocsoftmaxloss * args.weight_loss
-                lfcc_optimizer.zero_grad()
-                ocsoftmax_optimzer.zero_grad()
-                trainlossDict[args.add_loss].append(ocsoftmaxloss.item())
-                lfcc_loss.backward()
-                lfcc_optimizer.step()
-                ocsoftmax_optimzer.step()
+                if args.add_loss == "softmax":
+                    lfcc_optimizer.zero_grad()
+                    trainlossDict[args.add_loss].append(lfcc_loss.item())
+                    lfcc_loss.backward()
+                    lfcc_optimizer.step()
 
-            if args.add_loss == "amsoftmax":
-                outputs, moutputs = amsoftmax_loss(feats, labels)
-                lfcc_loss = criterion(moutputs, labels)
-                trainlossDict[args.add_loss].append(lfcc_loss.item())
-                lfcc_optimizer.zero_grad()
-                amsoftmax_optimzer.zero_grad()
-                lfcc_loss.backward()
-                lfcc_optimizer.step()
-                amsoftmax_optimzer.step()
+                if args.add_loss == "ocsoftmax":
+                    ocsoftmaxloss, _ = ocsoftmax(feats, labels)
+                    lfcc_loss = ocsoftmaxloss * args.weight_loss
+                    lfcc_optimizer.zero_grad()
+                    ocsoftmax_optimzer.zero_grad()
+                    trainlossDict[args.add_loss].append(ocsoftmaxloss.item())
+                    lfcc_loss.backward()
+                    lfcc_optimizer.step()
+                    ocsoftmax_optimzer.step()
 
-            with open(os.path.join(args.out_fold, "train_loss.log"), "a") as log:
-                log.write(str(epoch_num) + "\t" + str(i) + "\t" +
-                          str(np.nanmean(trainlossDict[monitor_loss])) + "\n")
+                if args.add_loss == "amsoftmax":
+                    outputs, moutputs = amsoftmax_loss(feats, labels)
+                    lfcc_loss = criterion(moutputs, labels)
+                    trainlossDict[args.add_loss].append(lfcc_loss.item())
+                    lfcc_optimizer.zero_grad()
+                    amsoftmax_optimzer.zero_grad()
+                    lfcc_loss.backward()
+                    lfcc_optimizer.step()
+                    amsoftmax_optimzer.step()
+                with open(os.path.join(args.out_fold, "train_loss.log"), "a") as log:
+                    log.write(str(epoch_num) + "\t" + str(i) + "\t" +
+                              str(np.nanmean(trainlossDict[monitor_loss])) + "\n")
+        
+        else:    
+            for i, (lfcc, audio_fn, tags, labels) in enumerate(tqdm(trainDataLoader)):
+                lfcc = lfcc.unsqueeze(1).float().to(args.device)
+                labels = labels.to(args.device)
+                feats, lfcc_outputs = lfcc_model(lfcc)
+                lfcc_loss = criterion(lfcc_outputs, labels)
+
+                if args.add_loss == "softmax":
+                    lfcc_optimizer.zero_grad()
+                    trainlossDict[args.add_loss].append(lfcc_loss.item())
+                    lfcc_loss.backward()
+                    lfcc_optimizer.step()
+
+                if args.add_loss == "ocsoftmax":
+                    ocsoftmaxloss, _ = ocsoftmax(feats, labels)
+                    lfcc_loss = ocsoftmaxloss * args.weight_loss
+                    lfcc_optimizer.zero_grad()
+                    ocsoftmax_optimzer.zero_grad()
+                    trainlossDict[args.add_loss].append(ocsoftmaxloss.item())
+                    lfcc_loss.backward()
+                    lfcc_optimizer.step()
+                    ocsoftmax_optimzer.step()
+
+                if args.add_loss == "amsoftmax":
+                    outputs, moutputs = amsoftmax_loss(feats, labels)
+                    lfcc_loss = criterion(moutputs, labels)
+                    trainlossDict[args.add_loss].append(lfcc_loss.item())
+                    lfcc_optimizer.zero_grad()
+                    amsoftmax_optimzer.zero_grad()
+                    lfcc_loss.backward()
+                    lfcc_optimizer.step()
+                    amsoftmax_optimzer.step()
+
+                with open(os.path.join(args.out_fold, "train_loss.log"), "a") as log:
+                    log.write(str(epoch_num) + "\t" + str(i) + "\t" +
+                                str(np.nanmean(trainlossDict[monitor_loss])) + "\n")
 
         # Val the model
         lfcc_model.eval()
         with torch.no_grad():
             idx_loader, score_loader = [], []
-            for i, (lfcc, audio_fn, tags, labels) in enumerate(tqdm(valDataLoader)):
-                lfcc = lfcc.unsqueeze(1).float().to(args.device)
-                labels = labels.to(args.device)
+            if args.dataset_version == "ASVspoof_2021":
+                for i, (lfcc, labels) in enumerate(tqdm(valDataLoader)):
+                    lfcc = lfcc.unsqueeze(1).float().to(args.device)
+                    labels = labels.to(args.device)
 
-                feats, lfcc_outputs = lfcc_model(lfcc)
+                    feats, lfcc_outputs = lfcc_model(lfcc)
 
-                lfcc_loss = criterion(lfcc_outputs, labels)
-                score = F.softmax(lfcc_outputs, dim=1)[:, 0]
+                    lfcc_loss = criterion(lfcc_outputs, labels)
+                    score = F.softmax(lfcc_outputs, dim=1)[:, 0]
 
-                if args.add_loss == "softmax":
-                    devlossDict["softmax"].append(lfcc_loss.item())
-                elif args.add_loss == "amsoftmax":
-                    outputs, moutputs = amsoftmax_loss(feats, labels)
-                    lfcc_loss = criterion(moutputs, labels)
-                    score = F.softmax(outputs, dim=1)[:, 0]
-                    devlossDict[args.add_loss].append(lfcc_loss.item())
-                elif args.add_loss == "ocsoftmax":
-                    ocsoftmaxloss, score = ocsoftmax(feats, labels)
-                    devlossDict[args.add_loss].append(ocsoftmaxloss.item())
-                idx_loader.append(labels)
-                score_loader.append(score)
+                    if args.add_loss == "softmax":
+                        devlossDict["softmax"].append(lfcc_loss.item())
+                    elif args.add_loss == "amsoftmax":
+                        outputs, moutputs = amsoftmax_loss(feats, labels)
+                        lfcc_loss = criterion(moutputs, labels)
+                        score = F.softmax(outputs, dim=1)[:, 0]
+                        devlossDict[args.add_loss].append(lfcc_loss.item())
+                    elif args.add_loss == "ocsoftmax":
+                        ocsoftmaxloss, score = ocsoftmax(feats, labels)
+                        devlossDict[args.add_loss].append(ocsoftmaxloss.item())
+                    idx_loader.append(labels)
+                    score_loader.append(score)
+            else:
+                for i, (lfcc, audio_fn, tags, labels) in enumerate(tqdm(valDataLoader)):
+                    lfcc = lfcc.unsqueeze(1).float().to(args.device)
+                    labels = labels.to(args.device)
+
+                    feats, lfcc_outputs = lfcc_model(lfcc)
+
+                    lfcc_loss = criterion(lfcc_outputs, labels)
+                    score = F.softmax(lfcc_outputs, dim=1)[:, 0]
+
+                    if args.add_loss == "softmax":
+                        devlossDict["softmax"].append(lfcc_loss.item())
+                    elif args.add_loss == "amsoftmax":
+                        outputs, moutputs = amsoftmax_loss(feats, labels)
+                        lfcc_loss = criterion(moutputs, labels)
+                        score = F.softmax(outputs, dim=1)[:, 0]
+                        devlossDict[args.add_loss].append(lfcc_loss.item())
+                    elif args.add_loss == "ocsoftmax":
+                        ocsoftmaxloss, score = ocsoftmax(feats, labels)
+                        devlossDict[args.add_loss].append(ocsoftmaxloss.item())
+                    idx_loader.append(labels)
+                    score_loader.append(score)
 
             scores = torch.cat(score_loader, 0).data.cpu().numpy()
             labels = torch.cat(idx_loader, 0).data.cpu().numpy()

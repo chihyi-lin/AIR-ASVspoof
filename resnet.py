@@ -37,9 +37,7 @@ class SelfAttention(nn.Module):
         else:
             noise = 1e-5*torch.randn(weighted.size())
 
-            if inputs.is_mps:
-                noise = noise.to(inputs.device)
-            elif inputs.is_cuda:
+            if inputs.is_cuda:
                 noise = noise.to(inputs.device)
             avg_repr, std_repr = weighted.sum(1), (weighted+noise).std(1)
 
@@ -182,7 +180,11 @@ class ResNet(nn.Module):
         x = self.layer3(x)
         x = self.layer4(x)
         x = self.conv5(x)
-        x = self.activation(self.bn5(x)).squeeze(2)
+        x = self.activation(self.bn5(x))
+        if x.size(2) == 1:  # If the second dimension is one, squeeze it out
+            x = x.squeeze(2)
+        else:  # If the second dimension is not one, use indexing to discard it
+            x = x[:, :, 0, :]
 
         stats = self.attention(x.permute(0, 2, 1).contiguous())
 
