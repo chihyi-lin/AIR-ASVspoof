@@ -32,7 +32,7 @@ class SimpleAudioFakeDataset(Dataset):
         transform=None,
         return_label: bool = True,
         return_meta: bool = False,
-        frontend: str = "lfcc"
+        frontend: str = None
     ):
         self.transform = transform
         self.samples = pd.DataFrame()

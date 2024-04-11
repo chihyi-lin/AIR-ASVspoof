@@ -26,7 +26,7 @@ def initParams():
     parser.add_argument("-o", "--out_fold", type=str, help="output folder", required=True, default='./models/try/')    
 
     # Training hyperparameters
-    parser.add_frontend('--frontend', type=str, default="lfcc", help="lfcc or mfcc")
+    parser.add_argument('--frontend', type=str, default="lfcc", help="lfcc or mfcc")
     parser.add_argument('--num_epochs', type=int, default=100, help="Number of epochs for training")
     parser.add_argument('--batch_size', type=int, default=64, help="Mini batch size for training")
     parser.add_argument('--lr', type=float, default=0.0003, help="learning rate")
@@ -164,7 +164,8 @@ def train(args):
 
     # feat, _, _, _ = training_set[29]
     # print("Feature shape", feat.shape)
-
+    trainDataLoader.frontend = args.frontend
+    valDataLoader.frontend = args.frontend
     criterion = nn.CrossEntropyLoss()
 
     if args.add_loss == "amsoftmax":
