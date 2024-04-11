@@ -32,6 +32,7 @@ class SimpleAudioFakeDataset(Dataset):
         transform=None,
         return_label: bool = True,
         return_meta: bool = False,
+        frontend: str = "lfcc"
     ):
         self.transform = transform
         self.samples = pd.DataFrame()
@@ -42,6 +43,7 @@ class SimpleAudioFakeDataset(Dataset):
         self.seed = None
         self.return_label = return_label
         self.return_meta = return_meta
+        self.frontend = frontend
 
     def split_samples(self, samples_list):
         if isinstance(samples_list, pd.DataFrame):
@@ -84,7 +86,11 @@ class SimpleAudioFakeDataset(Dataset):
         real_sec_length = len(waveform[0]) / sample_rate
 
         waveform, sample_rate = apply_preprocessing(waveform, sample_rate)
-        features = mfcc_double_delta_for_sample(waveform)   # (n_lfcc * 3, frames)
+        
+        if self.frontend == "mfcc":
+            features = mfcc_double_delta_for_sample(waveform)   # (n_lfcc * 3, frames)
+        else:
+            features = lfcc_double_delta_for_sample(waveform)   # (n_lfcc * 3, frames)
         
         if self.return_label:
             label = 0 if label == "bonafide" else 1

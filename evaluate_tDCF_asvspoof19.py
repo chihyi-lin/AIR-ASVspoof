@@ -26,10 +26,14 @@ def compute_eer_and_tdcf(cm_score_file, path_to_database):
 
     # Load CM scores
     cm_data = np.genfromtxt(cm_score_file, dtype=str)
-    cm_utt_id = cm_data[:, 0]
-    cm_sources = cm_data[:, 1]
-    cm_keys = cm_data[:, 2]
-    cm_scores = cm_data[:, 3].astype(float)
+    if "in_the_wild" in cm_score_file:
+        cm_keys = cm_data[:, 1]
+        cm_scores = cm_data[:, 2].astype(float)
+    else: 
+        cm_utt_id = cm_data[:, 0]
+        cm_sources = cm_data[:, 1]
+        cm_keys = cm_data[:, 2]
+        cm_scores = cm_data[:, 3].astype(float)
 
     other_cm_scores = -cm_scores
 

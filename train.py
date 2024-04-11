@@ -26,6 +26,7 @@ def initParams():
     parser.add_argument("-o", "--out_fold", type=str, help="output folder", required=True, default='./models/try/')    
 
     # Training hyperparameters
+    parser.add_frontend('--frontend', type=str, default="lfcc", help="lfcc or mfcc")
     parser.add_argument('--num_epochs', type=int, default=100, help="Number of epochs for training")
     parser.add_argument('--batch_size', type=int, default=64, help="Mini batch size for training")
     parser.add_argument('--lr', type=float, default=0.0003, help="learning rate")
@@ -149,7 +150,8 @@ def train(args):
             datasets_paths=args.asv_path,
             train_amount=args.train_amount,
             valid_amount=args.valid_amount,
-            batch_size=args.batch_size)
+            batch_size=args.batch_size,
+            frontend=args.frontend)
     else:
         training_set = ASVspoof2019(args.access_type, args.path_to_features, args.path_to_protocol, 'train',
                                     'LFCC', feat_len=args.feat_len, padding=args.padding)
@@ -315,7 +317,10 @@ def train(args):
 
             scores = torch.cat(score_loader, 0).data.cpu().numpy()
             labels = torch.cat(idx_loader, 0).data.cpu().numpy()
-            val_eer = em.compute_eer(scores[labels == 0], scores[labels == 1])[0]
+            if args.add_loss == "softmax":
+                val_eer = em.compute_eer(scores[labels == 1], scores[labels == 0])[0]
+            elif args.add_loss == "ocsoftmax":
+                val_eer = em.compute_eer(scores[labels == 0], scores[labels == 1])[0]
 
             with open(os.path.join(args.out_fold, "dev_loss.log"), "a") as log:
                 log.write(str(epoch_num) + "\t" + str(np.nanmean(devlossDict[monitor_loss])) + "\t" + str(val_eer) +"\n")

@@ -9,7 +9,7 @@ from evaluate_tDCF_asvspoof19 import compute_eer_and_tdcf
 from tqdm import tqdm
 import eval_metrics as em
 import numpy as np
-from evaluate_in_the_wild import compute_eer_in_the_wild
+
 
 def test_model(feat_model_path, loss_model_path, test_set, part, add_loss, device):
     dirname = os.path.dirname
@@ -67,33 +67,41 @@ def test_model(feat_model_path, loss_model_path, test_set, part, add_loss, devic
     elif test_set == 'in_the_wild':
         with open(os.path.join(dir_path, 'in_the_wild_score.txt'), 'w') as in_the_wild_score_file:
             for i, (lfcc, filename, labels) in enumerate(tqdm(testDataLoader)):
-                lfcc = lfcc.unsqueeze(1).float().to(device)
-                labels = labels.to(device)
+                with torch.no_grad():
+                    lfcc = lfcc.unsqueeze(1).float().to(device)
+                    labels = labels.to(device)
 
-                feats, lfcc_outputs = model(lfcc)
+                    feats, lfcc_outputs = model(lfcc)
 
-                score = F.softmax(lfcc_outputs)[:, 0]
+                    score = F.softmax(lfcc_outputs, dim=1)[:, 0]
 
-                if add_loss == "ocsoftmax":
-                    ang_isoloss, score = loss_model(feats, labels)
-                elif add_loss == "amsoftmax":
-                    outputs, moutputs = loss_model(feats, labels)
-                    score = F.softmax(outputs, dim=1)[:, 0]
-                
-                for j in range(labels.size(0)):
-                    in_the_wild_score_file.write(
-                        '%s %s %s\n' % (filename[j], 
-                                        "spoof" if labels[j].data.cpu().numpy() else "bona-fide",
-                                        score[j].item()))
+                    if add_loss == "ocsoftmax":
+                        ang_isoloss, score = loss_model(feats, labels)
+                    elif add_loss == "amsoftmax":
+                        outputs, moutputs = loss_model(feats, labels)
+                        score = F.softmax(outputs, dim=1)[:, 0]
+                    
+                    for j in range(labels.size(0)):
+                        in_the_wild_score_file.write(
+                            '%s %s %s\n' % (filename[j], 
+                                            "spoof" if labels[j].data.cpu().numpy() else "bonafide",
+                                            score[j].item()))
 
-        thresh, eer, fpr, tpr = compute_eer_in_the_wild(os.path.join(dir_path, 'in_the_wild_score.txt'))
-        print(f'EER In-the-wild: {eer:.4f}')
-        return eer
+        eer_cm, min_tDCF = compute_eer_and_tdcf(os.path.join(dir_path, 'in_the_wild_score.txt'),
+                                                    "datasets/ASVspoof2019_LA")
+        return eer_cm, min_tDCF                        
+
 
 def test(model_dir, add_loss, device, test_set):
     model_path = os.path.join(model_dir, "anti-spoofing_lfcc_model.pt")
     loss_model_path = os.path.join(model_dir, "anti-spoofing_loss_model.pt")
     test_model(model_path, loss_model_path, test_set, "eval", add_loss, device)
+
+
+def compute_eer_from_score_doc(score_file):
+    eer_cm, min_tDCF = compute_eer_and_tdcf(score_file, "datasets/ASVspoof2019_LA")
+    return eer_cm, min_tDCF  
+
 
 def test_individual_attacks(cm_score_file):
     asv_score_file = os.path.join('/data/neil/DS_10283_3336',
@@ -173,10 +181,13 @@ if __name__ == "__main__":
                         choices=["softmax", 'amsoftmax', 'ocsoftmax'], help="loss function")
     parser.add_argument("--gpu", type=str, help="GPU index", default="0")
     parser.add_argument('-t', '--test_set', type=str, help="choose a test dataset", default='ASVspoof2019')
+    parser.add_argument('-s', '--score_file', type=str, help="score file of the evaluation set", default=None)
     args = parser.parse_args()
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     args.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     test(args.model_dir, args.loss, args.device, args.test_set)
+    
+    # compute_eer_from_score_doc(args.score_file)
     # eer_cm_lst, min_tDCF_lst = test_individual_attacks(os.path.join(args.model_dir, 'checkpoint_cm_score.txt'))
     # print(eer_cm_lst)
     # print(min_tDCF_lst)

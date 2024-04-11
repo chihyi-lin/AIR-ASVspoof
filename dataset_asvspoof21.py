@@ -29,51 +29,19 @@ def get_datasets(
     return data_train, data_test
 
 
-# def parse_args():
-#     parser = argparse.ArgumentParser()
-
-#     ASVSPOOF_DATASET_PATH = "datasets/ASVspoof2021/DF"
-
-#     parser.add_argument(
-#         "--asv_path",
-#         type=str,
-#         default=ASVSPOOF_DATASET_PATH,
-#         help="Path to ASVspoof2021 dataset directory",
-#     )
-    
-#     default_train_amount = None
-#     parser.add_argument(
-#         "--train_amount",
-#         "-a",
-#         help=f"Amount of files to load for training.",
-#         type=int,
-#         default=default_train_amount,
-#     )
-
-#     default_val_amount = None
-#     parser.add_argument(
-#         "--valid_amount",
-#         "-va",
-#         help=f"Amount of files to load for testing.",
-#         type=int,
-#         default=default_val_amount,
-#     )
-
-#     return parser.parse_args()
-
-
 def preprocess_data(
         datasets_paths,
         train_amount,
         valid_amount,
-        batch_size
+        batch_size,
+        frontend
 ):
     # get_datasets, transforming waveforms into feature vectors
     data_train, data_test = get_datasets(
         datasets_paths=[datasets_paths],
         amount_to_use=(train_amount, valid_amount),
     )
-    print(f"Using mfcc_double_delta as features!")
+    print(f"Using {frontend} as features!")
 
     train_loader = DataLoader(
             data_train,

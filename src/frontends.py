@@ -73,9 +73,15 @@ def prepare_mfcc_double_delta(input):
 
 
 def mfcc_double_delta_for_sample(sample):
-    # if sample.ndim < 3:
-    #     sample = sample.unsqueeze(1)
     x = MFCC_FN(sample)
+    delta = delta_fn(x)
+    double_delta = delta_fn(delta)
+    x = torch.cat((x, delta, double_delta), 0)  # -> [128 * 3, 1500]
+    return x[:, :1500]  # (n_lfcc * 3, frames)
+
+
+def lfcc_double_delta_for_sample(sample):
+    x = LFCC_FN(sample)
     delta = delta_fn(x)
     double_delta = delta_fn(delta)
     x = torch.cat((x, delta, double_delta), 0)  # -> [128 * 3, 1500]
