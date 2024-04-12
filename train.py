@@ -318,10 +318,7 @@ def train(args):
 
             scores = torch.cat(score_loader, 0).data.cpu().numpy()
             labels = torch.cat(idx_loader, 0).data.cpu().numpy()
-            if args.add_loss == "softmax":
-                val_eer = em.compute_eer(scores[labels == 1], scores[labels == 0])[0]
-            elif args.add_loss == "ocsoftmax":
-                val_eer = em.compute_eer(scores[labels == 0], scores[labels == 1])[0]
+            val_eer = em.compute_eer(scores[labels == 0], scores[labels == 1])[0]
 
             with open(os.path.join(args.out_fold, "dev_loss.log"), "a") as log:
                 log.write(str(epoch_num) + "\t" + str(np.nanmean(devlossDict[monitor_loss])) + "\t" + str(val_eer) +"\n")

@@ -9,7 +9,7 @@ from evaluate_tDCF_asvspoof19 import compute_eer_and_tdcf
 from tqdm import tqdm
 import eval_metrics as em
 import numpy as np
-
+from src.metrics import calculate_eer
 
 def test_model(feat_model_path, loss_model_path, test_set, part, add_loss, device):
     dirname = os.path.dirname
@@ -87,9 +87,19 @@ def test_model(feat_model_path, loss_model_path, test_set, part, add_loss, devic
                                             "spoof" if labels[j].data.cpu().numpy() else "bonafide",
                                             score[j].item()))
 
-        eer_cm, min_tDCF = compute_eer_and_tdcf(os.path.join(dir_path, 'in_the_wild_score.txt'),
-                                                    "datasets/ASVspoof2019_LA")
-        return eer_cm, min_tDCF                        
+        score_data = np.genfromtxt(os.path.join(dir_path, 'in_the_wild_score.txt'), dtype=str)
+        y = score_data[:, 1]
+        if add_loss == "ocsoftmax":
+            # Map 'bona-fide' or 'bonafide' to 0, and 'spoof' to 1 same as the labeling in ground-truth
+            y = np.where(np.logical_or(y == 'bona-fide', y == 'bonafide'), 0.0, 1.0)
+        else:   # for 'softmax', mapping 'bona-fide' to 1 and 'spoof' to 0
+            y = np.where(np.logical_or(y == 'bona-fide', y == 'bonafide'), 1.0, 0.0)
+
+        y_pred = score_data[:, 2].astype(float)
+        eer, thresh = calculate_eer(y, y_pred)
+        print(f'eer: {eer}, thresh: {thresh}')
+
+        return eer                      
 
 
 def test(model_dir, add_loss, device, test_set):
@@ -99,8 +109,19 @@ def test(model_dir, add_loss, device, test_set):
 
 
 def compute_eer_from_score_doc(score_file):
-    eer_cm, min_tDCF = compute_eer_and_tdcf(score_file, "datasets/ASVspoof2019_LA")
-    return eer_cm, min_tDCF  
+    """Computing eer for an existing score file"""
+    score_data = np.genfromtxt(score_file, dtype=str)
+    y = score_data[:, 1]
+    if "ocsoftmax" in score_file:
+        # Map 'bona-fide' or 'bonafide' to 0, and 'spoof' to 1 same as the labeling in ground-truth
+        y = np.where(np.logical_or(y == 'bona-fide', y == 'bonafide'), 0.0, 1.0)
+    else:   # for 'softmax', mapping 'bona-fide' to 1 and 'spoof' to 0
+        y = np.where(np.logical_or(y == 'bona-fide', y == 'bonafide'), 1.0, 0.0)
+
+    y_pred = score_data[:, 2].astype(float)
+    eer, thresh = calculate_eer(y, y_pred)
+    print(f'eer: {eer}, thresh: {thresh}')
+    return eer, thresh  
 
 
 def test_individual_attacks(cm_score_file):

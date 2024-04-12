@@ -28,7 +28,7 @@ LFCC_FN = torchaudio.transforms.LFCC(
         "win_length": win_length,
         "hop_length": hop_length,
     },
-).to(device)
+)
 
 MEL_SCALE_FN = torchaudio.transforms.MelScale(
     n_mels=80,

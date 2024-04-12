@@ -10,8 +10,8 @@ from sklearn.metrics import roc_curve
 
 def calculate_eer(y, y_score):
     """ Returns equal error rate (EER) and the corresponding threshold. """
-    target_scores = y_score[y == 0] # target is bonafide (0)
-    nontarget_scores = y_score[y == 1]
+    target_scores = y_score[y == 1] # target is bonafide (0) during training
+    nontarget_scores = y_score[y == 0]
     frr, far, thresholds = compute_det_curve(target_scores, nontarget_scores)
     abs_diffs = np.abs(frr - far)
     min_index = np.argmin(abs_diffs)
