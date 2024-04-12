@@ -9,7 +9,7 @@ from evaluate_tDCF_asvspoof19 import compute_eer_and_tdcf
 from tqdm import tqdm
 import eval_metrics as em
 import numpy as np
-from src.metrics import calculate_eer
+from evaluate_in_the_wild import compute_eer_in_the_wild
 
 def test_model(feat_model_path, loss_model_path, test_set, part, add_loss, device):
     dirname = os.path.dirname
@@ -87,17 +87,8 @@ def test_model(feat_model_path, loss_model_path, test_set, part, add_loss, devic
                                             "spoof" if labels[j].data.cpu().numpy() else "bonafide",
                                             score[j].item()))
 
-        score_data = np.genfromtxt(os.path.join(dir_path, 'in_the_wild_score.txt'), dtype=str)
-        y = score_data[:, 1]
-        if add_loss == "ocsoftmax":
-            # Map 'bona-fide' or 'bonafide' to 0, and 'spoof' to 1 same as the labeling in ground-truth
-            y = np.where(np.logical_or(y == 'bona-fide', y == 'bonafide'), 0.0, 1.0)
-        else:   # for 'softmax', mapping 'bona-fide' to 1 and 'spoof' to 0
-            y = np.where(np.logical_or(y == 'bona-fide', y == 'bonafide'), 1.0, 0.0)
-
-        y_pred = score_data[:, 2].astype(float)
-        eer, thresh = calculate_eer(y, y_pred)
-        print(f'eer: {eer}, thresh: {thresh}')
+        thresh, eer, fpr, tpr = compute_eer_in_the_wild(os.path.join(dir_path, 'in_the_wild_score.txt'))
+        print(f'EER In-the-wild: {eer}, thresh: {-thresh}')
 
         return eer                      
 
@@ -106,22 +97,6 @@ def test(model_dir, add_loss, device, test_set):
     model_path = os.path.join(model_dir, "anti-spoofing_lfcc_model.pt")
     loss_model_path = os.path.join(model_dir, "anti-spoofing_loss_model.pt")
     test_model(model_path, loss_model_path, test_set, "eval", add_loss, device)
-
-
-def compute_eer_from_score_doc(score_file):
-    """Computing eer for an existing score file"""
-    score_data = np.genfromtxt(score_file, dtype=str)
-    y = score_data[:, 1]
-    if "ocsoftmax" in score_file:
-        # Map 'bona-fide' or 'bonafide' to 0, and 'spoof' to 1 same as the labeling in ground-truth
-        y = np.where(np.logical_or(y == 'bona-fide', y == 'bonafide'), 0.0, 1.0)
-    else:   # for 'softmax', mapping 'bona-fide' to 1 and 'spoof' to 0
-        y = np.where(np.logical_or(y == 'bona-fide', y == 'bonafide'), 1.0, 0.0)
-
-    y_pred = score_data[:, 2].astype(float)
-    eer, thresh = calculate_eer(y, y_pred)
-    print(f'eer: {eer}, thresh: {thresh}')
-    return eer, thresh  
 
 
 def test_individual_attacks(cm_score_file):
@@ -208,7 +183,10 @@ if __name__ == "__main__":
     args.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     test(args.model_dir, args.loss, args.device, args.test_set)
     
-    # compute_eer_from_score_doc(args.score_file)
+    # compute_eer_from_score_doc
+    # thresh, eer, fpr, tpr = compute_eer_in_the_wild(args.score_file)
+    # print(f'EER In-the-wild: {eer:.4f}, thresh; {-thresh}')
+
     # eer_cm_lst, min_tDCF_lst = test_individual_attacks(os.path.join(args.model_dir, 'checkpoint_cm_score.txt'))
     # print(eer_cm_lst)
     # print(min_tDCF_lst)

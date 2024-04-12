@@ -30,5 +30,5 @@ def compute_eer_in_the_wild(score_file):
     return calculate_eer(inverted_y_true, y_pred)
 
 if __name__ == "__main__": 
-    thresh, eer, fpr, tpr = compute_eer_in_the_wild('models/ocsoftmax/in_the_wild_score.txt')
-    print(f'EER In-the-wild: {eer:.4f}')
+    thresh, eer, fpr, tpr = compute_eer_in_the_wild('models_asv21_mfcc_eer_1004/ocsoftmax/in_the_wild_score_1.txt')
+    print(f'EER In-the-wild: {eer:.4f}, thresh: {-thresh}')
