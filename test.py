@@ -11,6 +11,8 @@ import eval_metrics as em
 import numpy as np
 from evaluate_in_the_wild import compute_eer_in_the_wild
 
+"""plot_t_SNE function is adapted from: https://gist.github.com/XIAOYixuan/81f6522c84f62ab644a05b4e3d21ffb7"""
+
 def test_model(feat_model_path, loss_model_path, test_set, part, add_loss, device):
     dirname = os.path.dirname
     basename = os.path.splitext(os.path.basename(feat_model_path))[0]
@@ -66,13 +68,16 @@ def test_model(feat_model_path, loss_model_path, test_set, part, add_loss, devic
     
     elif test_set == 'in_the_wild':
         with open(os.path.join(dir_path, 'in_the_wild_score.txt'), 'w') as in_the_wild_score_file:
+            all_feats = torch.Tensor([]).to(device)
+            all_labels = torch.Tensor([]).to(device)  
+
             for i, (lfcc, filename, labels) in enumerate(tqdm(testDataLoader)):
+  
                 with torch.no_grad():
                     lfcc = lfcc.unsqueeze(1).float().to(device)
                     labels = labels.to(device)
 
                     feats, lfcc_outputs = model(lfcc)
-
                     score = F.softmax(lfcc_outputs, dim=1)[:, 0]
 
                     if add_loss == "ocsoftmax":
@@ -81,22 +86,51 @@ def test_model(feat_model_path, loss_model_path, test_set, part, add_loss, devic
                         outputs, moutputs = loss_model(feats, labels)
                         score = F.softmax(outputs, dim=1)[:, 0]
                     
+                    # for plotting t-SNE
+                    feats = F.normalize(feats, p=2, dim=1)
+                    all_feats = torch.concat([all_feats, feats], dim=0)
+                    all_labels = torch.concat([all_labels, labels], dim=0)
+                    
                     for j in range(labels.size(0)):
                         in_the_wild_score_file.write(
                             '%s %s %s\n' % (filename[j], 
                                             "spoof" if labels[j].data.cpu().numpy() else "bonafide",
                                             score[j].item()))
-
+            
         thresh, eer, fpr, tpr = compute_eer_in_the_wild(os.path.join(dir_path, 'in_the_wild_score.txt'))
         print(f'EER In-the-wild: {eer}, thresh: {-thresh}')
 
-        return eer                      
+        return all_feats, all_labels                      
 
 
 def test(model_dir, add_loss, device, test_set):
     model_path = os.path.join(model_dir, "anti-spoofing_lfcc_model.pt")
     loss_model_path = os.path.join(model_dir, "anti-spoofing_loss_model.pt")
-    test_model(model_path, loss_model_path, test_set, "eval", add_loss, device)
+    all_feats, all_labels = test_model(model_path, loss_model_path, test_set, "eval", add_loss, device)
+    return all_feats, all_labels
+
+
+def project_to_2d(all_feats, all_labels):
+    print("all_feats:", all_feats.shape) # tensor [n, dim]
+    print("all_labels:", all_labels.shape) # tensor [n]
+    all_feats = all_feats.cpu().numpy()
+    all_labels = all_labels.cpu().numpy()
+    from sklearn.manifold import TSNE
+    tsne = TSNE(n_components=2, random_state=0)
+    all_feats = tsne.fit_transform(all_feats)
+
+    pos_feats = all_feats[all_labels == 0] # it is detected as a real audio
+    neg_feats = all_feats[all_labels == 1]
+    return pos_feats, neg_feats
+
+
+def plot_t_SNE(real_dots, fake_dots, model_dir):
+    import matplotlib.pyplot as plt
+    plt.scatter(real_dots[:, 0], real_dots[:, 1], c="blue", label="real", s=1)
+    plt.scatter(fake_dots[:, 0], fake_dots[:, 1], c="red", label="fake", s=1)
+    plt.legend()
+    # save
+    plt.savefig(os.path.join(model_dir, "t-SNE_plot.png"))
 
 
 def test_individual_attacks(cm_score_file):
@@ -181,7 +215,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     args.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    test(args.model_dir, args.loss, args.device, args.test_set)
+    all_feats, all_labels = test(args.model_dir, args.loss, args.device, args.test_set)
+    pos_feats, neg_feats = project_to_2d(all_feats, all_labels)
+    plot_t_SNE(pos_feats, neg_feats, args.model_dir)
     
     # compute_eer_from_score_doc
     # thresh, eer, fpr, tpr = compute_eer_in_the_wild(args.score_file)
