@@ -99,6 +99,8 @@ def test_model(feat_model_path, loss_model_path, test_set, part, add_loss, devic
             
         thresh, eer, fpr, tpr = compute_eer_in_the_wild(os.path.join(dir_path, 'in_the_wild_score.txt'))
         print(f'EER In-the-wild: {eer}, thresh: {-thresh}')
+        # eer_cm, min_tDCF = compute_eer_and_tdcf(os.path.join(dir_path, 'in_the_wild_score.txt'),
+        #                                     "datasets/ASVspoof2019_LA")
 
         return all_feats, all_labels                      
 
@@ -126,6 +128,7 @@ def project_to_2d(all_feats, all_labels):
 
 def plot_t_SNE(real_dots, fake_dots, model_dir):
     import matplotlib.pyplot as plt
+    plt.figure()
     plt.scatter(real_dots[:, 0], real_dots[:, 1], c="blue", label="real", s=1)
     plt.scatter(fake_dots[:, 0], fake_dots[:, 1], c="red", label="fake", s=1)
     plt.legend()
@@ -216,8 +219,8 @@ if __name__ == "__main__":
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     args.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     all_feats, all_labels = test(args.model_dir, args.loss, args.device, args.test_set)
-    pos_feats, neg_feats = project_to_2d(all_feats, all_labels)
-    plot_t_SNE(pos_feats, neg_feats, args.model_dir)
+    # pos_feats, neg_feats = project_to_2d(all_feats, all_labels)
+    # plot_t_SNE(pos_feats, neg_feats, args.model_dir)
     
     # compute_eer_from_score_doc
     # thresh, eer, fpr, tpr = compute_eer_in_the_wild(args.score_file)
