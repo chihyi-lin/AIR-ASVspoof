@@ -213,7 +213,7 @@ if __name__ == "__main__":
     parser.add_argument('-l', '--loss', type=str, default="ocsoftmax",
                         choices=["softmax", 'amsoftmax', 'ocsoftmax'], help="loss function")
     parser.add_argument("--gpu", type=str, help="GPU index", default="0")
-    parser.add_argument('-t', '--test_set', type=str, help="choose a test dataset", default='ASVspoof2019')
+    parser.add_argument('-t', '--test_set', type=str, help="choose a test dataset", default='in_the_wild')
     parser.add_argument('-s', '--score_file', type=str, help="score file of the evaluation set", default=None)
     args = parser.parse_args()
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
