@@ -2,7 +2,7 @@ Guarding Against Deepfake Audio with One-Class Softmax
 ===============
 The codebase in this project is adapted from [AIR-ASVspoof](https://github.com/yzyouzhang/AIR-ASVspoof) and [deepfake-whisper-features](https://github.com/piotrkawa/deepfake-whisper-features).
 
-The project aims to explore the generalization capability of anti-spoofing systems utilizing the One-Class Softmax loss function ([Zhang et al., 2021](https://ieeexplore.ieee.org/document/9417604)) on real-world samples. Please refer to [poster.pdf](https://github.com/chihyi-lin/AIR-ASVspoof/blob/master/poster.pdf) for more details.
+The project aims to explore the generalization capability of anti-spoofing systems utilizing the One-Class Softmax loss function ([Zhang et al., 2021](https://ieeexplore.ieee.org/document/9417604)) on real-world samples. Please refer to the [report](https://github.com/chihyi-lin/One-Class-Softmax/blob/master/report_OCSoftmax.pdf) and [poster](https://github.com/chihyi-lin/AIR-ASVspoof/blob/master/poster.pdf) for more details.
 * This repo: Various experiments of ResNet18.
 * [Whisper-ocsoftmax](https://github.com/chihyi-lin/Whisper-ocsoftmax): Using this repo to run experiment of MFCC+Whisper+MesoNet-OCSoftmax.
 * [Whisper-softmax](https://github.com/chihyi-lin/Whisper-softmax): Using this repo to run experiment of MFCC+Whisper+MesoNet-Softmax.
