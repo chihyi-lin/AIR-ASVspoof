@@ -4,8 +4,8 @@ The codebase in this project is adapted from [AIR-ASVspoof](https://github.com/y
 
 The project aims to explore the generalization capability of anti-spoofing systems utilizing the One-Class Softmax loss function ([Zhang et al., 2021](https://ieeexplore.ieee.org/document/9417604)) on real-world samples. Please refer to [poster.pdf](https://github.com/chihyi-lin/AIR-ASVspoof/blob/master/poster.pdf) for more details.
 * This repo: Various experiments of ResNet18.
-* [Whisper-ocsoftmax](https://github.com/chihyi-lin/deepfake-whisper-features): Using this repo to run experiment of MFCC+Whisper+MesoNet-OCSoftmax.
-* [Whisper-softmax](https://github.com/chihyi-lin/whisper-feature-softmax.git): Using this repo to run experiment of MFCC+Whisper+MesoNet-Softmax.
+* [Whisper-ocsoftmax](https://github.com/chihyi-lin/Whisper-ocsoftmax): Using this repo to run experiment of MFCC+Whisper+MesoNet-OCSoftmax.
+* [Whisper-softmax](https://github.com/chihyi-lin/Whisper-softmax): Using this repo to run experiment of MFCC+Whisper+MesoNet-Softmax.
 
 ## Requirements
 python==3.10
